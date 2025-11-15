@@ -50,22 +50,33 @@ int main(){
 
 ```
 prog ::= functions
+
 functions := function functions | epsilon
+
 function ::= type identifier(t_args){statements} # function definition
 type ::= int
 identifier ::= [a.z]  # No numbers, they're evil
+
 t_args ::= t_arg t_args_tail | epsilon # t for typed
 t_args_tail ::= ,t_arg t_args_tail | epsilon # t for typed
 t_arg ::= type identifier
+
 args ::= expression args_tail | epsilon
 args_tail ::= ,expression args_tail | epsilon
+
 statements ::= statement; statements | epsilon
+
 statement ::= t_arg = expression | expression
-expression ::= atom expression_tail 
-expression_tail ::= + atom expression_tail | epsilon
-atom ::= identifier | int_literal | function_call
-int_literal ::= [2^16-1] | -[2^16-1]
-function_call ::= identifier(args)
+
+expression ::= unary expression_tail 
+expression_tail ::= + unary expression_tail | epsilon
+
+unary :== -unary | atom
+atom ::= identifier | int_literal | function_call | (expression)
+
+int_literal ::= digits
+
+function_call ::= identifier(args) 
 ```
 
 
