@@ -45,6 +45,31 @@ int main(){
     return(0); // Define return as a built in function :)
 }
 ```
+## Goal program 2
+
+```c
+int factorial_one(int n){
+    if (n == 0){
+        return(1);
+    }
+    return(n * factorial_one(n-1))
+}
+
+int factorial_two(int n){
+    int res = 1;
+    while (n > 0){
+        res *= n;
+        n = n - 1;
+    }
+    return res;
+}
+
+int main(){
+    outInt(factorial_one(5));
+    outInt(factorial_two(5));
+    return(0);
+}
+```
 
 ### Grammar
 
@@ -53,30 +78,57 @@ prog ::= functions
 
 functions := function functions | epsilon
 
-function ::= type identifier(t_args){statements} # function definition
+function ::= type identifier "(" t_args ")" scope               # function definition
 type ::= int
-identifier ::= [a.z]  # No numbers, they're evil
+identifier ::= [a.z]+                                           # No numbers, they're evil
 
-t_args ::= t_arg t_args_tail | epsilon # t for typed
-t_args_tail ::= ,t_arg t_args_tail | epsilon # t for typed
+while :== "while" "(" expression ")" scope
+if :== "if" "(" expression ")" scope
+scope :== "{" statements "}"
+
+t_args ::= t_arg t_args_tail | epsilon                          # t for typed
+t_args_tail ::= "," t_arg t_args_tail | epsilon                 # t for typed
 t_arg ::= type identifier
 
 args ::= expression args_tail | epsilon
-args_tail ::= ,expression args_tail | epsilon
+args_tail ::= "," expression args_tail | epsilon
 
-statements ::= statement; statements | epsilon
+statements ::= statement statements | epsilon
+statement ::= simple_statement ";" | compound_statement
+simple_statement ::= t_arg "=" expression 
+                  | identifier "=" expression
+                  | expression 
+compound_statement ::= if | while | scope
 
-statement ::= t_arg = expression | expression
+expression      ::= logical_or
 
-expression ::= unary expression_tail 
-expression_tail ::= + unary expression_tail | epsilon
+logical_or      ::= logical_and logical_or_tail
+logical_or_tail ::= "||" logical_and logical_or_tail | ε
 
-unary :== -unary | atom
-atom ::= identifier | int_literal | function_call | (expression)
+logical_and     ::= equality logical_and_tail
+logical_and_tail::= "&&" equality logical_and_tail | ε
+
+equality        ::= relational equality_tail
+equality_tail   ::= ("==" | "!=") relational equality_tail | ε
+
+relational      ::= additive relational_tail
+relational_tail ::= ("<" | "<=" | ">" | ">=") additive relational_tail | ε
+
+additive        ::= multiplicative additive_tail
+additive_tail   ::= ("+" | "-") multiplicative additive_tail | ε
+
+multiplicative  ::= unary multiplicative_tail
+multiplicative_tail ::= ("*" | "/") unary multiplicative_tail | ε
+
+unary :== ("-" | "!") unary | atom
+atom ::= identifier 
+      | int_literal 
+      | function_call 
+      | "(" expression ")"
 
 int_literal ::= digits
 
-function_call ::= identifier(args) 
+function_call ::= identifier "(" args ")"
 ```
 
 
