@@ -1,6 +1,6 @@
 module Lexer where
 
-import Data.List (stripPrefix)
+import Control.Applicative ((<|>))
 import Debug.Trace (trace)
 import GHC.Unicode (isAlpha, isAlphaNum, isDigit, isSpace)
 import Prelude hiding (GT, LT)
@@ -15,6 +15,9 @@ tokenise ('=' : '=' : xs) = (Equality :) <$> tokenise xs
 tokenise ('!' : '=' : xs) = (NEquality :) <$> tokenise xs
 tokenise ('>' : '=' : xs) = (GEQ :) <$> tokenise xs
 tokenise ('<' : '=' : xs) = (LEQ :) <$> tokenise xs
+tokenise ('/' : '/' : xs) = do
+  (tok, xs') <- tokeniseWhile (/= '\n') Comment xs <|> Just (Comment "", xs)
+  (tok :) <$> tokenise xs'
 -- character tokens
 tokenise ('!' : xs) = (LNot :) <$> tokenise xs
 tokenise ('>' : xs) = (GT :) <$> tokenise xs
@@ -35,9 +38,6 @@ tokenise (c : xs) | isSpace c = tokenise xs
 tokenise [] = Just [EOF]
 -- keywords
 tokenise s
-  | Just afterSlashes <- stripPrefix "//" s,
-    Just (tok, xs) <- tokeniseWhile (/= '\n') Comment afterSlashes =
-      (tok :) <$> tokenise xs
   | Just (tok, xs) <- tokeniseIntLiteral s =
       (tok :) <$> tokenise xs
   | Just (tok, xs) <- tokeniseKeywordOrIdentifier s =

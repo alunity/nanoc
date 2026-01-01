@@ -2,9 +2,8 @@
 
 {-# HLINT ignore "Use newtype instead of data" #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-module Parser (parseExpression) where
+module Parser (parseExpression, Expression) where
 
-import Debug.Trace (trace)
 import Lexer (Token)
 import qualified Lexer as L
 import Prelude hiding (GT, LT)
@@ -151,7 +150,7 @@ parseMultiple (Just d) end p (t : ts)
       | x == d = parseMultiple (Just d) end p xs
       | otherwise = Nothing
     divOrEnd _ = Nothing
-parseMultiple _ _ _ _ = trace "Hi" Nothing
+parseMultiple _ _ _ _ = Nothing
 
 parsePrecendentally :: Parser Expression -> Parser BiOp -> Parser Expression
 parsePrecendentally p op ts = do
