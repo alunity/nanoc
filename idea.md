@@ -6,21 +6,23 @@ We're going to make a compiler for a really simple C style language targetting m
 in Haskell
 
 Clear components
+
 - Tokeniser (Super duper simple)
 - Parser (Fairly simpler)
 - Type checker (Kinda simple)
 - Codegen (I've never done before)
 
 Language features
+
 - You can call functions
 - Data Types: Int, Double, Char (In that order)
 - Mathematical expressions
 - Pass by reference????
 
-
 ## Goal program 1
 
 - Functions, ints, math on ints
+
 ```c
 
 int add(int x, int y){
@@ -38,13 +40,14 @@ int main(){
     int resa = add(res1, res2);
     int res = add(resa, res3);
 
-    outInt(res); 
+    outInt(res);
     // Hard code output functions for now, since we don't even have strings to hardcode printf into
     // In codegen we can implement using printf
 
     return(0); // Define return as a built in function :)
 }
 ```
+
 ## Goal program 2
 
 ```c
@@ -74,7 +77,7 @@ int main(){
 ### Grammar
 
 ```
-prog ::= functions
+program ::= functions
 
 functions := function functions | epsilon
 
@@ -95,9 +98,10 @@ args_tail ::= "," expression args_tail | epsilon
 
 statements ::= statement statements | epsilon
 statement ::= simple_statement ";" | compound_statement
-simple_statement ::= t_arg "=" expression 
+simple_statement ::= t_arg "=" expression
+                  | t_arg 
                   | identifier "=" expression
-                  | expression 
+                  | expression
 compound_statement ::= if | while | scope
 
 expression      ::= logical_or
@@ -120,15 +124,12 @@ additive_tail   ::= ("+" | "-") multiplicative additive_tail | ε
 multiplicative  ::= unary multiplicative_tail
 multiplicative_tail ::= ("*" | "/") unary multiplicative_tail | ε
 
-unary :== ("-" | "!") unary | atom
-atom ::= identifier 
-      | int_literal 
-      | function_call 
+unary ::= ("-" | "!") unary | atom
+atom ::= identifier
+      | int_literal
+      | function_call
       | "(" expression ")"
-
 int_literal ::= digits
 
 function_call ::= identifier "(" args ")"
 ```
-
-

@@ -5,7 +5,7 @@ import Debug.Trace (trace)
 import GHC.Unicode (isAlpha, isAlphaNum, isDigit, isSpace)
 import Prelude hiding (GT, LT)
 
-data Token = Identifier String | Comment String | KwInt | Comma | LParen | RParen | LBrace | RBrace | Semicolon | Assign | Plus | Minus | Multiply | Divide | EOF | IntLiteral Int | LAnd | LOr | LNot | Equality | NEquality | GT | LT | GEQ | LEQ | KwIf | KwWhile deriving (Show)
+data Token = Identifier String | Comment String | KwInt | Comma | LParen | RParen | LBrace | RBrace | Semicolon | Assign | Plus | Minus | Multiply | Divide | EOF | IntLiteral Int | LAnd | LOr | LNot | Equality | NEquality | GT | LT | GEQ | LEQ | KwIf | KwWhile deriving (Show, Eq)
 
 tokenise :: String -> Maybe [Token]
 -- multicharacter tokens
