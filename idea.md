@@ -61,10 +61,10 @@ int factorial_one(int n){
 int factorial_two(int n){
     int res = 1;
     while (n > 0){
-        res *= n;
+        res = res * n;
         n = n - 1;
     }
-    return res;
+    return(res);
 }
 
 int main(){

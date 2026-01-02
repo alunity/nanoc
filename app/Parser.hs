@@ -85,17 +85,33 @@ parseScope ts = do
 -- Statement
 
 parseStatement :: Parser Statement
-parseStatement ts = do
-  (ts', s) <- parseSimpleStatement ts
-  (ts'', _) <- expect L.Semicolon ts'
-  return (ts'', s)
+parseStatement ts = parseSimpleStatement ts `orElse` parseComplexStatement ts
 
 parseSimpleStatement :: Parser Statement
-parseSimpleStatement ts =
-  parseDeclarationAssignment ts
-    `orElse` parseDeclaration ts
-    `orElse` parseAssignment ts
-    `orElse` (Data.Bifunctor.second SExpr <$> parseExpression ts)
+parseSimpleStatement ts = do
+  (ts', s) <- aux
+  (ts'', _) <- expect L.Semicolon ts'
+  return (ts'', s)
+  where
+    aux =
+      parseDeclarationAssignment ts
+        `orElse` parseDeclaration ts
+        `orElse` parseAssignment ts
+        `orElse` (Data.Bifunctor.second SExpr <$> parseExpression ts)
+
+parseComplexStatement :: Parser Statement
+parseComplexStatement (L.KwIf : ts) = do
+  (ts', e) <- between L.LParen L.RParen parseExpression ts
+  (ts'', s) <- parseScope ts'
+  return (ts'', SIf e s)
+parseComplexStatement (L.KwWhile : ts) = do
+  (ts', e) <- between L.LParen L.RParen parseExpression ts
+  (ts'', s) <- parseScope ts'
+  return (ts'', SWhile e s)
+parseComplexStatement ts@(L.LBrace : _) = do
+  (ts', s) <- parseScope ts
+  return (ts', SBlock s)
+parseComplexStatement ts = Left ("Failed to parse statement " ++ show ts)
 
 parseDeclarationAssignment :: Parser Statement
 parseDeclarationAssignment ts = do
@@ -191,7 +207,7 @@ parseUOp a = Left (expectedError "UOp" a)
 expect :: Token -> Parser ()
 expect t (x : xs)
   | t == x = Right (xs, ())
-  | otherwise = Left (expectedError (show t) x)
+  | otherwise = Left (expectedError (show t) (x : xs))
 expect _ _ = Left "Expect failed"
 
 between :: Token -> Token -> Parser a -> Parser a
@@ -218,7 +234,7 @@ parseMultiple (Just d) end p (t : ts)
     divOrEnd (x : xs)
       | x == end = Right (xs, [])
       | x == d = parseMultiple (Just d) end p xs
-      | otherwise = Left (expectedError (show end ++ " or " ++ show d) x)
+      | otherwise = Left (expectedError (show end ++ " or " ++ show d) (x : xs))
     divOrEnd _ = Left "parseMultiple expected more tokens"
 parseMultiple _ _ _ _ = Left "parseMultiple failed"
 
@@ -242,4 +258,4 @@ expectedError expected received = "Expected: " ++ expected ++ ", Received:" ++ s
 
 orElse :: Either e a -> Either e a -> Either e a
 orElse (Right x) _ = Right x
-orElse (Left  _) r = r
+orElse (Left _) r = r
