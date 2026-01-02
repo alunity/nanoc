@@ -55,7 +55,7 @@ int factorial_one(int n){
     if (n == 0){
         return(1);
     }
-    return(n * factorial_one(n-1))
+    return(n * factorial_one(n-1));
 }
 
 int factorial_two(int n){

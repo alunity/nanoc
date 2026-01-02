@@ -10,13 +10,13 @@ main :: IO ()
 main = do
   content <- readFile "./local/main.c"
   case compile content of
-    Nothing -> putStrLn "Compile/parse failed"
-    Just expr -> print expr
+    Left err -> putStrLn err
+    Right prog -> print prog
 
-compile :: String -> Maybe ([Token], Program)
+compile :: String -> Either String ([Token], Program)
 compile content = do
-  tokens <- tokenise content
-  trace (show tokens) Just ()
+  tokens <- maybeToEither "Tokenisation failed" (tokenise content)
+  trace (show tokens) Right ()
   parse (filter (not . isComment) tokens)
   where
     isComment :: Token -> Bool
@@ -27,3 +27,6 @@ readFile :: FilePath -> IO String
 readFile p = do
   handle <- openFile p ReadMode
   hGetContents handle
+
+maybeToEither :: e -> Maybe a -> Either e a
+maybeToEither err = maybe (Left err) Right

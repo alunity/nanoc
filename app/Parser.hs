@@ -4,7 +4,6 @@
 
 module Parser (parse, Program) where
 
-import Control.Applicative ((<|>))
 import qualified Data.Bifunctor
 import Lexer (Token)
 import qualified Lexer as L
@@ -45,7 +44,7 @@ data Lit = LInt Int deriving (Show)
 
 data BiOp = LOr | LAnd | Eq | NEq | LT | LEq | GT | GEq | Add | Minus | Mul | Div deriving (Show)
 
-type Parser a = ([Token] -> Maybe ([Token], a))
+type Parser a = ([Token] -> Either String ([Token], a))
 
 parse :: Parser Program
 parse ts = do
@@ -62,15 +61,15 @@ parseFunction ts = do
   (ts''', _) <- expect L.LParen ts''
   (ts'''', args) <- parseMultiple (Just L.Comma) L.RParen parseArg ts'''
   (ts''''', body) <- parseScope ts''''
-  Just (ts''''', Function {fRetType = t, fName = i, fParams = args, fBody = body})
+  Right (ts''''', Function {fRetType = t, fName = i, fParams = args, fBody = body})
 
 parseType :: Parser Type
-parseType (L.KwInt : ts) = Just (ts, TInt)
-parseType _ = Nothing
+parseType (L.KwInt : ts) = Right (ts, TInt)
+parseType a = Left (expectedError "Type" a)
 
 parseIdentifier :: Parser String
-parseIdentifier ((L.Identifier d) : ts) = Just (ts, d)
-parseIdentifier _ = Nothing
+parseIdentifier ((L.Identifier d) : ts) = Right (ts, d)
+parseIdentifier a = Left (expectedError "Identifer" a)
 
 parseArg :: Parser (Type, String)
 parseArg ts = do
@@ -94,14 +93,14 @@ parseStatement ts = do
 parseSimpleStatement :: Parser Statement
 parseSimpleStatement ts =
   parseDeclarationAssignment ts
-    <|> parseDeclaration ts
-    <|> parseAssignment ts
-    <|> (Data.Bifunctor.second SExpr <$> parseExpression ts)
+    `orElse` parseDeclaration ts
+    `orElse` parseAssignment ts
+    `orElse` (Data.Bifunctor.second SExpr <$> parseExpression ts)
 
 parseDeclarationAssignment :: Parser Statement
 parseDeclarationAssignment ts = do
   (ts', (t, i)) <- parseArg ts
-  (ts'', _) <- expect L.Equality ts'
+  (ts'', _) <- expect L.Assign ts'
   (ts''', e) <- parseExpression ts''
   return (ts''', SDeclare t i (Just e))
 
@@ -111,7 +110,7 @@ parseDeclaration ts = (\(ts, (t, i)) -> (ts, SDeclare t i Nothing)) <$> parseArg
 parseAssignment :: Parser Statement
 parseAssignment ts = do
   (ts', i) <- parseIdentifier ts
-  (ts'', _) <- expect L.Equality ts'
+  (ts'', _) <- expect L.Assign ts'
   (ts''', e) <- parseExpression ts''
   return (ts''', SAssign i e)
 
@@ -121,107 +120,107 @@ parseExpression :: Parser Expression
 parseExpression = parseLOr
 
 parseLOrSym :: Parser BiOp
-parseLOrSym (L.LOr : ts) = Just (ts, LOr)
-parseLOrSym _ = Nothing
+parseLOrSym (L.LOr : ts) = Right (ts, LOr)
+parseLOrSym a = Left (expectedError "LOr" a)
 
 parseLOr :: Parser Expression
 parseLOr = parsePrecendentally parseLAnd parseLOrSym
 
 parseLAndSym :: Parser BiOp
-parseLAndSym (L.LAnd : ts) = Just (ts, LAnd)
-parseLAndSym _ = Nothing
+parseLAndSym (L.LAnd : ts) = Right (ts, LAnd)
+parseLAndSym a = Left (expectedError "LAnd" a)
 
 parseLAnd :: Parser Expression
 parseLAnd = parsePrecendentally parseEq parseLAndSym
 
 parseEqSym :: Parser BiOp
-parseEqSym (L.Equality : ts) = Just (ts, Eq)
-parseEqSym (L.NEquality : ts) = Just (ts, NEq)
-parseEqSym _ = Nothing
+parseEqSym (L.Equality : ts) = Right (ts, Eq)
+parseEqSym (L.NEquality : ts) = Right (ts, NEq)
+parseEqSym a = Left (expectedError "Eq" a)
 
 parseEq :: Parser Expression
 parseEq = parsePrecendentally parseRe parseEqSym
 
 parseReSym :: Parser BiOp
-parseReSym (L.GT : ts) = Just (ts, GT)
-parseReSym (L.GEQ : ts) = Just (ts, GEq)
-parseReSym (L.LT : ts) = Just (ts, LT)
-parseReSym (L.LEQ : ts) = Just (ts, LEq)
-parseReSym _ = Nothing
+parseReSym (L.GT : ts) = Right (ts, GT)
+parseReSym (L.GEQ : ts) = Right (ts, GEq)
+parseReSym (L.LT : ts) = Right (ts, LT)
+parseReSym (L.LEQ : ts) = Right (ts, LEq)
+parseReSym a = Left (expectedError "Re" a)
 
 parseRe :: Parser Expression
 parseRe = parsePrecendentally parseAdd parseReSym
 
 parseAddSym :: Parser BiOp
-parseAddSym (L.Plus : ts) = Just (ts, Add)
-parseAddSym (L.Minus : ts) = Just (ts, Minus)
-parseAddSym _ = Nothing
+parseAddSym (L.Plus : ts) = Right (ts, Add)
+parseAddSym (L.Minus : ts) = Right (ts, Minus)
+parseAddSym a = Left (expectedError "Add" a)
 
 parseAdd :: Parser Expression
 parseAdd = parsePrecendentally parseMul parseAddSym
 
 parseMulSym :: Parser BiOp
-parseMulSym (L.Multiply : ts) = Just (ts, Mul)
-parseMulSym (L.Divide : ts) = Just (ts, Div)
-parseMulSym _ = Nothing
+parseMulSym (L.Multiply : ts) = Right (ts, Mul)
+parseMulSym (L.Divide : ts) = Right (ts, Div)
+parseMulSym a = Left (expectedError "Mul" a)
 
 parseMul :: Parser Expression
 parseMul = parsePrecendentally parseUnary parseMulSym
 
 parseUnary :: Parser Expression
 parseUnary ts
-  | Just (ts', op) <- parseUop ts = do
+  | Right (ts', op) <- parseUOp ts = do
       (ts'', e) <- parseExpression ts'
       return (ts'', EUOp op e)
   | otherwise = parseAtom ts
 
 parseAtom :: Parser Expression
-parseAtom ((L.IntLiteral d) : ts) = Just (ts, ELit (LInt d))
+parseAtom ((L.IntLiteral d) : ts) = Right (ts, ELit (LInt d))
 parseAtom ((L.Identifier d) : L.LParen : ts) = do
   (ts', es) <- parseMultiple (Just L.Comma) L.RParen parseExpression ts
   return (ts', ECall d es)
-parseAtom ((L.Identifier d) : ts) = Just (ts, EVar d)
+parseAtom ((L.Identifier d) : ts) = Right (ts, EVar d)
 parseAtom ts@(L.LParen : _) = between L.LParen L.RParen parseExpression ts
-parseAtom _ = Nothing
+parseAtom a = Left (expectedError "Atom" a)
 
-parseUop :: Parser UOp
-parseUop (L.LNot : ts) = Just (ts, LNot)
-parseUop (L.Minus : ts) = Just (ts, Negate)
-parseUop _ = Nothing
+parseUOp :: Parser UOp
+parseUOp (L.LNot : ts) = Right (ts, LNot)
+parseUOp (L.Minus : ts) = Right (ts, Negate)
+parseUOp a = Left (expectedError "UOp" a)
 
 expect :: Token -> Parser ()
 expect t (x : xs)
-  | t == x = Just (xs, ())
-  | otherwise = Nothing
-expect _ _ = Nothing
+  | t == x = Right (xs, ())
+  | otherwise = Left (expectedError (show t) x)
+expect _ _ = Left "Expect failed"
 
 between :: Token -> Token -> Parser a -> Parser a
 between o c p ts = do
   (ts', _) <- expect o ts
   (ts'', a) <- p ts'
   (ts''', _) <- expect c ts''
-  Just (ts''', a)
+  Right (ts''', a)
 
 parseMultiple :: Maybe Token -> Token -> Parser a -> Parser [a]
 parseMultiple Nothing end p (t : ts)
-  | t == end = Just (ts, [])
+  | t == end = Right (ts, [])
   | otherwise = do
       (ts', e) <- p (t : ts)
       (ts'', es) <- parseMultiple Nothing end p ts'
       return (ts'', e : es)
 parseMultiple (Just d) end p (t : ts)
-  | t == end = Just (ts, [])
+  | t == end = Right (ts, [])
   | otherwise = do
       (ts', a) <- p (t : ts)
       (ts'', as) <- divOrEnd ts'
       return (ts'', a : as)
   where
     divOrEnd (x : xs)
-      | x == end = Just (xs, [])
+      | x == end = Right (xs, [])
       | x == d = parseMultiple (Just d) end p xs
-      | otherwise = Nothing
-    divOrEnd _ = Nothing
-parseMultiple _ _ _ _ = Nothing
+      | otherwise = Left (expectedError (show end ++ " or " ++ show d) x)
+    divOrEnd _ = Left "parseMultiple expected more tokens"
+parseMultiple _ _ _ _ = Left "parseMultiple failed"
 
 parsePrecendentally :: Parser Expression -> Parser BiOp -> Parser Expression
 parsePrecendentally p op ts = do
@@ -230,10 +229,17 @@ parsePrecendentally p op ts = do
   where
     parsePrecendentally' :: Expression -> Parser BiOp -> Parser Expression -> [Token] -> ([Token], Expression)
     parsePrecendentally' e op p ts = case allowedToFail of
-      Just (sym, r, ts'') -> parsePrecendentally' (EBiOp sym e r) op p ts''
-      Nothing -> (ts, e)
+      Right (sym, r, ts'') -> parsePrecendentally' (EBiOp sym e r) op p ts''
+      Left _ -> (ts, e)
       where
         allowedToFail = do
           (ts', sym) <- op ts
           (ts'', r) <- p ts'
           return (sym, r, ts'')
+
+expectedError :: (Show a) => String -> a -> String
+expectedError expected received = "Expected: " ++ expected ++ ", Received:" ++ show received
+
+orElse :: Either e a -> Either e a -> Either e a
+orElse (Right x) _ = Right x
+orElse (Left  _) r = r
