@@ -1,14 +1,15 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
 {-# HLINT ignore "Use newtype instead of data" #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-module Parser (parseExpression, Expression) where
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
+module Parser (parse, Program) where
+
+import Control.Applicative ((<|>))
+import qualified Data.Bifunctor
 import Lexer (Token)
 import qualified Lexer as L
 import Prelude hiding (GT, LT)
 
--- data AST = Atom Atom
 newtype Program = Program [Function] deriving (Show)
 
 data Function = Function
@@ -45,6 +46,76 @@ data Lit = LInt Int deriving (Show)
 data BiOp = LOr | LAnd | Eq | NEq | LT | LEq | GT | GEq | Add | Minus | Mul | Div deriving (Show)
 
 type Parser a = ([Token] -> Maybe ([Token], a))
+
+parse :: Parser Program
+parse ts = do
+  (ts', fs) <- parseFunctions ts
+  return (ts', Program fs)
+
+parseFunctions :: Parser [Function]
+parseFunctions = parseMultiple Nothing L.EOF parseFunction
+
+parseFunction :: Parser Function
+parseFunction ts = do
+  (ts', t) <- parseType ts
+  (ts'', i) <- parseIdentifier ts'
+  (ts''', _) <- expect L.LParen ts''
+  (ts'''', args) <- parseMultiple (Just L.Comma) L.RParen parseArg ts'''
+  (ts''''', body) <- parseScope ts''''
+  Just (ts''''', Function {fRetType = t, fName = i, fParams = args, fBody = body})
+
+parseType :: Parser Type
+parseType (L.KwInt : ts) = Just (ts, TInt)
+parseType _ = Nothing
+
+parseIdentifier :: Parser String
+parseIdentifier ((L.Identifier d) : ts) = Just (ts, d)
+parseIdentifier _ = Nothing
+
+parseArg :: Parser (Type, String)
+parseArg ts = do
+  (ts', t) <- parseType ts
+  (ts'', i) <- parseIdentifier ts'
+  return (ts'', (t, i))
+
+parseScope :: Parser [Statement]
+parseScope ts = do
+  (ts', _) <- expect L.LBrace ts
+  parseMultiple Nothing L.RBrace parseStatement ts'
+
+-- Statement
+
+parseStatement :: Parser Statement
+parseStatement ts = do
+  (ts', s) <- parseSimpleStatement ts
+  (ts'', _) <- expect L.Semicolon ts'
+  return (ts'', s)
+
+parseSimpleStatement :: Parser Statement
+parseSimpleStatement ts =
+  parseDeclarationAssignment ts
+    <|> parseDeclaration ts
+    <|> parseAssignment ts
+    <|> (Data.Bifunctor.second SExpr <$> parseExpression ts)
+
+parseDeclarationAssignment :: Parser Statement
+parseDeclarationAssignment ts = do
+  (ts', (t, i)) <- parseArg ts
+  (ts'', _) <- expect L.Equality ts'
+  (ts''', e) <- parseExpression ts''
+  return (ts''', SDeclare t i (Just e))
+
+parseDeclaration :: Parser Statement
+parseDeclaration ts = (\(ts, (t, i)) -> (ts, SDeclare t i Nothing)) <$> parseArg ts
+
+parseAssignment :: Parser Statement
+parseAssignment ts = do
+  (ts', i) <- parseIdentifier ts
+  (ts'', _) <- expect L.Equality ts'
+  (ts''', e) <- parseExpression ts''
+  return (ts''', SAssign i e)
+
+-- Expression
 
 parseExpression :: Parser Expression
 parseExpression = parseLOr
