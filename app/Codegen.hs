@@ -2,7 +2,7 @@ module Codegen where
 
 import Control.Monad.State
 import Data.Map as Map
-import Debug.Trace (trace, traceM)
+import Debug.Trace (traceM)
 import Parser (BiOp (Add, Divide, Eq, GEq, GT, LAnd, LEq, LOr, LT, Minus, Multiply, NEq), Expression (..), Function (fBody, fName, fParams), Lit (..), Program (..), Statement (..), Type, UOp (LNot, Negate))
 import Prelude hiding (GT, LT)
 
@@ -61,10 +61,10 @@ instance Show Instr where
   show (Sw r1 i r2) = "sw " ++ (show r1) ++ "," ++ (show i) ++ "(" ++ show (r2) ++ ")"
   show (Addiu r1 r2 i) = "addu " ++ (show r1) ++ "," ++ (show r2) ++ "," ++ (show i)
   show (Subiu r1 r2 i) = "subu " ++ (show r1) ++ "," ++ (show r2) ++ "," ++ (show i)
-  show (Beq r1 r2 s) = "beq " ++ (show r1) ++ "," ++ (show r2) ++ "," ++ (show s)
-  show (J s) = "j " ++ (show s)
+  show (Beq r1 r2 s) = "beq " ++ (show r1) ++ "," ++ (show r2) ++ "," ++ (s)
+  show (J s) = "j " ++ (s)
   show (Jr r) = "jr " ++ (show r)
-  show (Jal s) = "jal " ++ (show s)
+  show (Jal s) = "jal " ++ (s)
   show (Label s) = s ++ ":"
   show (Syscall) = "syscall"
 
@@ -105,7 +105,7 @@ genFunction f = do
   emit $ Label (fName f)
   genFunctionPrologue
   -- figure out stack frame
-  mapM_ genStatement (fBody f)
+  genStatements (fBody f)
   genFunctionEpilogue
   where
     mapArguments :: [(Type, String)] -> Int -> Map String Int -> Map String Int
@@ -145,6 +145,9 @@ lookupVar s = do
     Just offset -> pure offset
     Nothing -> undefined
 
+genStatements :: [Statement] -> Codegen ()
+genStatements = mapM_ genStatement
+
 genStatement :: Statement -> Codegen ()
 genStatement (SExpr e) = genExpression e
 genStatement (SDeclare _ _ Nothing) = pure ()
@@ -154,6 +157,23 @@ genStatement (SAssign s e) = do
   pop T0
   offset <- lookupVar s
   emit $ Sw T0 offset FP
+genStatement (SIf e ss) = do
+  genExpression e
+  pop T0
+  end <- freshLabel "end"
+  emit $ Beq T0 ZERO end
+  genStatements ss
+  emit $ Label end
+genStatement (SWhile e ss) = do
+  start <- freshLabel "start"
+  end <- freshLabel "end"
+  emit $ Label start
+  genExpression e
+  pop T0
+  emit $ Beq T0 ZERO end
+  genStatements ss
+  emit $ J start
+  emit $ Label end
 genStatement _ = undefined
 
 genLiteral :: Lit -> Codegen ()
@@ -205,6 +225,10 @@ genExpression (ECall "outInt" [expression]) = do
   emit $ Li V0 11
   emit $ Li A0 10
   emit $ Syscall
+genExpression (ECall "readInt" []) = do
+  emit $ Li V0 5
+  emit $ Syscall
+  push V0
 genExpression (EVar s) = do
   offset <- lookupVar s
   emit $ Lw T0 offset FP
