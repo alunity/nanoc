@@ -11,7 +11,7 @@ main :: IO ()
 main = do
   content <- readFile "./local/main.c"
   case compile content of
-    Left err -> putStrLn err
+    Left err -> putStrLn ("\ESC[31m" ++ err ++ "\ESC[0m")
     Right out -> writeFile "out/out.s" out
 
 compile :: String -> Either String String
