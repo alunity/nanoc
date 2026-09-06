@@ -117,8 +117,14 @@ genFunction f = do
     mapLocals ((_, s) : xs) i m = mapLocals xs (i - 4) (Map.insert s i m)
 
     findLocals :: [Statement] -> [(Type, String)]
-    findLocals ((SDeclare t s _) : xs) = (t, s) : (findLocals xs)
-    findLocals (_ : xs) = (findLocals xs)
+    findLocals (s : xs) = (dfs s) ++ (findLocals xs)
+      where
+        dfs :: Statement -> [(Type, String)]
+        dfs (SDeclare t name _) = [(t, name)]
+        dfs (SIf _ ss) = concat (Prelude.map dfs ss)
+        dfs (SWhile _ ss) = concat (Prelude.map dfs ss)
+        dfs (SBlock ss) = concat (Prelude.map dfs ss)
+        dfs _ = []
     findLocals [] = []
 
     argumentMap = mapArguments (reverse (fParams f)) 8 Map.empty
