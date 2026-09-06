@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-module Parser (parse, Program(..), Function(..), Statement(..), Expression(..), Lit(..), UOp(..), BiOp(..)) where
+module Parser (parse, Program(..), Function(..), Statement(..), Expression(..), Lit(..), UOp(..), BiOp(..), Type(..)) where
 
 import qualified Data.Bifunctor
 import Lexer (Token)

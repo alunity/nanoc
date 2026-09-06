@@ -2,7 +2,8 @@ module Codegen where
 
 import Control.Monad.State
 import Data.Map as Map
-import Parser (BiOp (Add, Divide, Eq, GEq, GT, LAnd, LEq, LOr, LT, Minus, Multiply, NEq), Expression (..), Function (fBody, fName), Lit (..), Program (..), Statement (..), UOp (LNot, Negate))
+import Debug.Trace (trace, traceM)
+import Parser (BiOp (Add, Divide, Eq, GEq, GT, LAnd, LEq, LOr, LT, Minus, Multiply, NEq), Expression (..), Function (fBody, fName, fParams), Lit (..), Program (..), Statement (..), Type, UOp (LNot, Negate))
 import Prelude hiding (GT, LT)
 
 data Reg = T0 | T1 | V0 | A0 | SP | FP | RA | ZERO
@@ -99,20 +100,60 @@ pop r = do
 genFunction :: Function -> Codegen ()
 genFunction f = do
   s <- get
-  put s {currentEnd = '.' : (fName f) ++ "_end", env = Map.empty}
+  put s {currentEnd = '.' : (fName f) ++ "_end", env = (fullMap)}
+  traceM (show fullMap)
   emit $ Label (fName f)
+  genFunctionPrologue
   -- figure out stack frame
   mapM_ genStatement (fBody f)
   genFunctionEpilogue
   where
+    mapArguments :: [(Type, String)] -> Int -> Map String Int -> Map String Int
+    mapArguments [] _ m = m
+    mapArguments ((_, s) : xs) i m = mapArguments xs (i + 4) (Map.insert s i m)
+
+    mapLocals :: [(Type, String)] -> Int -> Map String Int -> (Map String Int, Int)
+    mapLocals [] i m = (m, i + 4)
+    mapLocals ((_, s) : xs) i m = mapLocals xs (i - 4) (Map.insert s i m)
+
+    findLocals :: [Statement] -> [(Type, String)]
+    findLocals ((SDeclare t s _) : xs) = (t, s) : (findLocals xs)
+    findLocals (_ : xs) = (findLocals xs)
+    findLocals [] = []
+
+    argumentMap = mapArguments (reverse (fParams f)) 8 Map.empty
+    (fullMap, stackStart) = mapLocals (findLocals (fBody f)) (-4) argumentMap
+
+    genFunctionPrologue :: Codegen ()
+    genFunctionPrologue = do
+      emit $ Addiu SP SP (-8)
+      emit $ Sw RA 4 SP
+      emit $ Sw FP 0 SP
+      emit $ Move FP SP
+      emit $ Addiu SP SP stackStart
+
     genFunctionEpilogue :: Codegen ()
     genFunctionEpilogue = do
       s <- get
       emit $ Label (currentEnd s)
       emit $ Jr RA
 
+lookupVar :: String -> Codegen Int
+lookupVar s = do
+  envMap <- gets env
+  case Map.lookup s envMap of
+    Just offset -> pure offset
+    Nothing -> undefined
+
 genStatement :: Statement -> Codegen ()
 genStatement (SExpr e) = genExpression e
+genStatement (SDeclare _ _ Nothing) = pure ()
+genStatement (SDeclare _ s (Just e)) = genStatement (SAssign s e)
+genStatement (SAssign s e) = do
+  genExpression e
+  pop T0
+  offset <- lookupVar s
+  emit $ Sw T0 offset FP
 genStatement _ = undefined
 
 genLiteral :: Lit -> Codegen ()
@@ -164,6 +205,10 @@ genExpression (ECall "outInt" [expression]) = do
   emit $ Li V0 11
   emit $ Li A0 10
   emit $ Syscall
+genExpression (EVar s) = do
+  offset <- lookupVar s
+  emit $ Lw T0 offset FP
+  push T0
 genExpression _ = undefined
 
 genProgram :: Program -> Codegen ()
