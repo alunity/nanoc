@@ -42,7 +42,7 @@ data UOp = LNot | Negate deriving (Show)
 
 data Lit = LInt Int deriving (Show)
 
-data BiOp = LOr | LAnd | Eq | NEq | LT | LEq | GT | GEq | Add | Minus | Mul | Div deriving (Show)
+data BiOp = LOr | LAnd | Eq | NEq | LT | LEq | GT | GEq | Add | Minus | Multiply | Divide deriving (Show)
 
 type Parser a = ([Token] -> Either String ([Token], a))
 
@@ -176,8 +176,8 @@ parseAdd :: Parser Expression
 parseAdd = parsePrecendentally parseMul parseAddSym
 
 parseMulSym :: Parser BiOp
-parseMulSym (L.Multiply : ts) = Right (ts, Mul)
-parseMulSym (L.Divide : ts) = Right (ts, Div)
+parseMulSym (L.Multiply : ts) = Right (ts, Multiply)
+parseMulSym (L.Divide : ts) = Right (ts, Divide)
 parseMulSym a = Left (expectedError "Mul" a)
 
 parseMul :: Parser Expression
