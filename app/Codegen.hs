@@ -161,6 +161,9 @@ genExpression (ECall "outInt" [expression]) = do
   pop A0
   emit $ Li V0 1
   emit $ Syscall
+  emit $ Li V0 11
+  emit $ Li A0 10
+  emit $ Syscall
 genExpression _ = undefined
 
 genProgram :: Program -> Codegen ()
