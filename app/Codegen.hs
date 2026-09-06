@@ -5,6 +5,7 @@ import Data.Map as Map
 import Debug.Trace (traceM)
 import Parser (BiOp (Add, Divide, Eq, GEq, GT, LAnd, LEq, LOr, LT, Minus, Multiply, NEq), Expression (..), Function (fBody, fName, fParams), Lit (..), Program (..), Statement (..), Type, UOp (LNot, Negate))
 import Prelude hiding (GT, LT)
+import Control.Monad (replicateM_)
 
 data Reg = T0 | T1 | V0 | A0 | SP | FP | RA | ZERO
 
@@ -140,8 +141,12 @@ genFunction f = do
 
     genFunctionEpilogue :: Codegen ()
     genFunctionEpilogue = do
-      s <- get
-      emit $ Label (currentEnd s)
+      endLabel <- gets currentEnd
+      emit $ Label endLabel
+      emit $ Move SP FP
+      emit $ Lw FP 0 SP
+      emit $ Lw RA 4 SP
+      emit $ Addiu SP SP 8
       emit $ Jr RA
 
 lookupVar :: String -> Codegen Int
@@ -235,11 +240,20 @@ genExpression (ECall "readInt" []) = do
   emit $ Li V0 5
   emit $ Syscall
   push V0
+genExpression (ECall "return" [expression]) = do
+  endLabel <- gets currentEnd
+  genExpression expression
+  pop V0
+  emit $ J endLabel
+genExpression (ECall name expression_list) = do
+  mapM_ genExpression expression_list
+  emit $ Jal name
+  replicateM_ (length expression_list) (pop T0)
+  push V0
 genExpression (EVar s) = do
   offset <- lookupVar s
   emit $ Lw T0 offset FP
   push T0
-genExpression _ = undefined
 
 genProgram :: Program -> Codegen ()
 genProgram (Program fs) = mapM_ genFunction fs
